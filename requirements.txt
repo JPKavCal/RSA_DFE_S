@@ -1,0 +1,6 @@
+pandas
+numpy
+geopandas
+shapely
+leafmap
+streamlit
