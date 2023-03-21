@@ -6,7 +6,7 @@ import geopandas as gp
 
 from LittleHelpers import assemble, sidebar
 
-from leafmap.foliumap import Map
+import leafmap.foliumap as foliumap
 
 
 @st.cache_data
@@ -28,7 +28,7 @@ def reset_values():
 assemble()
 sidebar()
 
-m = Map(tiles="Stamen Terrain", latlon_control=True, search_control=False,
+m = foliumap.Map(tiles="Stamen Terrain", latlon_control=True, search_control=False,
         measure_control=False,
         draw_control=False)
 
