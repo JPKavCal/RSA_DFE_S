@@ -3,6 +3,6 @@ numpy
 geopandas
 shapely
 pyproj
-leafmap==0.18.1
+leafmap
 streamlit_folium
-streamlit==1.19.0
+streamlit
