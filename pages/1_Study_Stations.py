@@ -30,8 +30,7 @@ def load_primary(catch_file):
 
 
 # Link to google drive as test of speed
-dws_prim = 'https://drive.google.com/uc?id=1_iivRT1-Fb8wvgIPfRX2guebFD5FnlBy'
-gdf = load_primary(dws_prim)
+gdf = load_primary(st.session_state.dws_prim)
 
 st.title("Study Stations and Catchments")
 
@@ -60,7 +59,7 @@ if region != 'All':
     if station == 'All':
         stat = stations.copy()
         catch = gdf[gdf.PRIMARY == region].copy()
-        st.session_state.catch = None
+        # st.session_state.catch = None
         st.session_state.selstat = 0
     else:  # if sel_type == 'Station':
         st.session_state.selstat = options.index(station)
@@ -68,7 +67,7 @@ if region != 'All':
         catch = regcatch[regcatch['gauge'] == station].loc[:, ['gauge', 'Area', 'Lc', 'ARF', 'Tc', 'geometry']]
         catch = np.round(catch, 2)
 
-        st.session_state.catch = regcatch[regcatch['gauge'] == station].drop('geometry', axis=1)
+        # st.session_state.catch = regcatch[regcatch['gauge'] == station].drop('geometry', axis=1)
 
 else:
     catch = gdf
