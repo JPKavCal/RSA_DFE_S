@@ -1,6 +1,6 @@
 import streamlit as st
-# import os
-
+import os
+os.environ["USE_MKDOCS"] = '1'
 import geopandas as gp
 # import pyproj
 

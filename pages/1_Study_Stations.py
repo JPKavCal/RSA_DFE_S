@@ -1,6 +1,9 @@
+import os
 import geopandas as gp
 import streamlit as st
 import numpy as np
+#
+os.environ["USE_MKDOCS"] = '1'
 import leafmap.foliumap as leafmap
 from shapely.geometry import Point
 
