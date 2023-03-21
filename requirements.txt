@@ -5,4 +5,4 @@ shapely
 pyproj
 leafmap==0.18.1
 streamlit_folium
-streamlit
+streamlit==0.19
