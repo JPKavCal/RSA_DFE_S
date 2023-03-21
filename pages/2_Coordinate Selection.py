@@ -4,9 +4,9 @@ import streamlit as st
 import geopandas as gp
 # import pyproj
 
-from LittleHelpers import assemble, sidebar
+import leafmap.foliumap as leafmap
 
-import leafmap.foliumap as foliumap
+from LittleHelpers import assemble, sidebar
 
 
 @st.cache_data
@@ -28,7 +28,7 @@ def reset_values():
 assemble()
 sidebar()
 
-m = foliumap.Map(tiles="Stamen Terrain", latlon_control=True, search_control=False,
+m = leafmap.Map(tiles="Stamen Terrain", latlon_control=True, search_control=False,
         measure_control=False,
         draw_control=False)
 
