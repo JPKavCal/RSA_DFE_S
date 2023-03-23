@@ -8,3 +8,4 @@ streamlit_folium
 streamlit
 rasterio
 bokeh
+pysheds
