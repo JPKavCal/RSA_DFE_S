@@ -11,8 +11,8 @@ import leafmap.foliumap as leafmap
 from shapely.geometry import Point, Polygon
 from pysheds.grid import Grid
 from shapely.ops import transform, nearest_points
-from osgeo import gdal
-from rasterio import features, Affine
+# from osgeo import gdal
+from rasterio import Affine
 from rasterio import open as rasopen
 from rasterio.mask import mask
 
@@ -104,149 +104,149 @@ def dist_to_coast(_pt):
     return np.sqrt((pp[1].coords[0][0] - pp[0].coords[0][0]) ** 2 + (pp[1].coords[0][1] - pp[0].coords[0][1]) ** 2)
 
 
-@st.cache_data
-def longest_flow_path(cell, region_):
-    """
-    Delineates the longest flow path and adds various attributes
-
-    """
-    import numpy as np
-    from shapely import LineString
-    from shapely.ops import transform
-    import pyproj
-
-    fd_list = [8, 1, 2, 7, 3, 6, 5, 4]
-    shift_list = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]
-    cell = [int(x) for x in cell]
-    cell_list = []
-    vertex_list = []
-    length_list = [0]
-    el_list = []
-    area_list = [0]
-
-    wgs84 = '+proj=longlat +datum=WGS84 +no_defs +type=crs'
-    aea = '+proj=aea +lat_0=0 +lon_0=25 +lat_1=20 +lat_2=-23 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs'
-    project = pyproj.Transformer.from_crs(wgs84, aea, always_xy=True).transform
-
-    map_path = f"./regions/map/RSA_MAP.tif"
-    el_path = f"./regions/Fel/Region_{region_}_fel.tif"
-    fd_path = f"./regions/FD/Region_{region_}_FD.tif"
-    path = f"./regions/FAcc/Region_{region_}_FAcc.tif"
-
-    r = gdal.Open(path)
-    band = r.GetRasterBand(1)
-
-    f_dr = gdal.Open(fd_path)
-    f_dband = f_dr.GetRasterBand(1)
-
-    el_ras = gdal.Open(el_path)
-    el_band = el_ras.GetRasterBand(1)
-
-    (upper_left_x, x_size, x_rotation, upper_left_y, y_rotation, y_size) = r.GetGeoTransform()
-
-    past_point = band.ReadAsArray(cell[0], cell[1], 1, 1)[0][0]
-
-    # add first point to line
-    x = cell[0] * x_size + upper_left_x + (x_size / 2)  # add half the cell size
-    y = cell[1] * y_size + upper_left_y + (y_size / 2)  # to centre the point
-
-    vertex_list.append([np.round(x, 4), np.round(y, 4)])
-    cell_list.append(cell)
-    el_list.append(el_band.ReadAsArray(cell[0], cell[1], 1, 1)[0][0])
-
-    while past_point > 0:
-        # Setup for remaining checks and flow path tracing
-        bounding_cells = []
-        bounding_values = []
-        bounding_fd = []
-
-        for shift in shift_list:
-            try:
-                bounding_fd.append(f_dband.ReadAsArray(shift[1] + cell[0], shift[0] + cell[1], 1, 1)[0][0])
-                bounding_values.append(band.ReadAsArray(shift[1] + cell[0], shift[0] + cell[1], 1, 1)[0][0])
-                bounding_cells.append([shift[1] + cell[0], shift[0] + cell[1]])
-            except:
-                continue
-
-        pop_list = []
-
-        for value in range(len(bounding_values)):
-            if bounding_values[value] > past_point:
-                pop_list.append(value)
-            if bounding_values[value] == past_point and bounding_fd[value] != fd_list[value]:
-                pop_list.append(value)
-
-        pop_list.reverse()
-        for item in pop_list:
-            bounding_values.pop(item)
-            bounding_cells.pop(item)
-
-        past_point = max(set(bounding_values))
-        cell = [bounding_cells[bounding_values.index(past_point)][0],
-                bounding_cells[bounding_values.index(past_point)][1]]
-
-        x = cell[0] * x_size + upper_left_x + (x_size / 2)  # add half the cell size
-        y = cell[1] * y_size + upper_left_y + (y_size / 2)  # to centre the point
-
-        vertex_list.append([np.round(x, 4), np.round(y, 4)])
-        cell_list.append(cell)
-        el_list.append(el_band.ReadAsArray(cell[0], cell[1], 1, 1)[0][0])
-
-    line_ = LineString(vertex_list)
-
-    el_drop_list = list(map(lambda l: abs(l - el_list[0]), el_list))
-
-    line = transform(project, line_)
-    length = line.length
-
-    a2 = [*line.coords]
-
-    for i in range(1, len(vertex_list)):
-        length_list.append(length_list[i - 1] + np.sqrt((a2[i][0] - a2[i - 1][0]) ** 2
-                                                        + (a2[i][1] - a2[i - 1][1]) ** 2))
-        area_list.append(area_list[i - 1] + el_drop_list[i - 1] * (length_list[i] - length_list[i - 1]) +
-                         0.5 * (length_list[i] - length_list[i - 1]) * (
-                                 el_drop_list[i] - el_drop_list[i - 1]))
-
-    sea = (2 * area_list[-1] / length) / length
-    d10 = list(map(lambda x: abs(x - length_list[-1] * .1), length_list))
-    d85 = list(map(lambda x: abs(x - length_list[-1] * .85), length_list))
-
-    d10_loc = d10.index(min(d10))
-    d85_loc = d85.index(min(d85))
-
-    s_cell = [int(round((vertex_list[0][0] - upper_left_x - (x_size / 2)) / x_size, 0)),
-              int(round((vertex_list[0][1] - upper_left_y - (y_size / 2)) / y_size, 0))]
-
-    d10_cell = [int(round((vertex_list[d10_loc][0] - upper_left_x - (x_size / 2)) / x_size, 0)),
-                int(round((vertex_list[d10_loc][1] - upper_left_y - (y_size / 2)) / y_size, 0))]
-
-    d85_cell = [int(round((vertex_list[d85_loc][0] - upper_left_x - (x_size / 2)) / x_size, 0)),
-                int(round((vertex_list[d85_loc][1] - upper_left_y - (y_size / 2)) / y_size, 0))]
-
-    e_cell = [int(round((vertex_list[-1][0] - upper_left_x - (x_size / 2)) / x_size, 0)),
-              int(round((vertex_list[-1][1] - upper_left_y - (y_size / 2)) / y_size, 0))]
-
-    d10_val = el_band.ReadAsArray(d10_cell[0], d10_cell[1], 1, 1)[0]
-    d85_val = el_band.ReadAsArray(d85_cell[0], d85_cell[1], 1, 1)[0]
-    s_val = el_band.ReadAsArray(s_cell[0], s_cell[1], 1, 1)[0]
-    e_val = el_band.ReadAsArray(e_cell[0], e_cell[1], 1, 1)[0]
-
-    del el_band
-
-    s10 = (d85_val - d10_val) / (0.75 * length)
-
-    return line_, {
-        "Length (km)": np.round(length / 1000, 3),
-        "Elevation (Start)": int(s_val[0]),
-        "Elevation (10%)": int(d10_val[0]),
-        "Elevation (85%)": int(d85_val[0]),
-        "Elevation (End)": int(e_val[0]),
-        "Slope": (float(e_val[0]) - float(s_val[0])) / length,
-        "Slope (Equal Area)": float(sea),
-        "Slope (10-85)": float(s10[0]),
-        "Tc (hr)": np.round(((0.87 * (length / 1000) ** 2) / (1000 * float(s10[0]))) ** 0.385, 2)
-    }
+# @st.cache_data
+# def longest_flow_path(cell, region_):
+#     """
+#     Delineates the longest flow path and adds various attributes
+#
+#     """
+#     import numpy as np
+#     from shapely import LineString
+#     from shapely.ops import transform
+#     import pyproj
+#
+#     fd_list = [8, 1, 2, 7, 3, 6, 5, 4]
+#     shift_list = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]
+#     cell = [int(x) for x in cell]
+#     cell_list = []
+#     vertex_list = []
+#     length_list = [0]
+#     el_list = []
+#     area_list = [0]
+#
+#     wgs84 = '+proj=longlat +datum=WGS84 +no_defs +type=crs'
+#     aea = '+proj=aea +lat_0=0 +lon_0=25 +lat_1=20 +lat_2=-23 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs'
+#     project = pyproj.Transformer.from_crs(wgs84, aea, always_xy=True).transform
+#
+#     map_path = f"./regions/map/RSA_MAP.tif"
+#     el_path = f"./regions/Fel/Region_{region_}_fel.tif"
+#     fd_path = f"./regions/FD/Region_{region_}_FD.tif"
+#     path = f"./regions/FAcc/Region_{region_}_FAcc.tif"
+#
+#     r = gdal.Open(path)
+#     band = r.GetRasterBand(1)
+#
+#     f_dr = gdal.Open(fd_path)
+#     f_dband = f_dr.GetRasterBand(1)
+#
+#     el_ras = gdal.Open(el_path)
+#     el_band = el_ras.GetRasterBand(1)
+#
+#     (upper_left_x, x_size, x_rotation, upper_left_y, y_rotation, y_size) = r.GetGeoTransform()
+#
+#     past_point = band.ReadAsArray(cell[0], cell[1], 1, 1)[0][0]
+#
+#     # add first point to line
+#     x = cell[0] * x_size + upper_left_x + (x_size / 2)  # add half the cell size
+#     y = cell[1] * y_size + upper_left_y + (y_size / 2)  # to centre the point
+#
+#     vertex_list.append([np.round(x, 4), np.round(y, 4)])
+#     cell_list.append(cell)
+#     el_list.append(el_band.ReadAsArray(cell[0], cell[1], 1, 1)[0][0])
+#
+#     while past_point > 0:
+#         # Setup for remaining checks and flow path tracing
+#         bounding_cells = []
+#         bounding_values = []
+#         bounding_fd = []
+#
+#         for shift in shift_list:
+#             try:
+#                 bounding_fd.append(f_dband.ReadAsArray(shift[1] + cell[0], shift[0] + cell[1], 1, 1)[0][0])
+#                 bounding_values.append(band.ReadAsArray(shift[1] + cell[0], shift[0] + cell[1], 1, 1)[0][0])
+#                 bounding_cells.append([shift[1] + cell[0], shift[0] + cell[1]])
+#             except:
+#                 continue
+#
+#         pop_list = []
+#
+#         for value in range(len(bounding_values)):
+#             if bounding_values[value] > past_point:
+#                 pop_list.append(value)
+#             if bounding_values[value] == past_point and bounding_fd[value] != fd_list[value]:
+#                 pop_list.append(value)
+#
+#         pop_list.reverse()
+#         for item in pop_list:
+#             bounding_values.pop(item)
+#             bounding_cells.pop(item)
+#
+#         past_point = max(set(bounding_values))
+#         cell = [bounding_cells[bounding_values.index(past_point)][0],
+#                 bounding_cells[bounding_values.index(past_point)][1]]
+#
+#         x = cell[0] * x_size + upper_left_x + (x_size / 2)  # add half the cell size
+#         y = cell[1] * y_size + upper_left_y + (y_size / 2)  # to centre the point
+#
+#         vertex_list.append([np.round(x, 4), np.round(y, 4)])
+#         cell_list.append(cell)
+#         el_list.append(el_band.ReadAsArray(cell[0], cell[1], 1, 1)[0][0])
+#
+#     line_ = LineString(vertex_list)
+#
+#     el_drop_list = list(map(lambda l: abs(l - el_list[0]), el_list))
+#
+#     line = transform(project, line_)
+#     length = line.length
+#
+#     a2 = [*line.coords]
+#
+#     for i in range(1, len(vertex_list)):
+#         length_list.append(length_list[i - 1] + np.sqrt((a2[i][0] - a2[i - 1][0]) ** 2
+#                                                         + (a2[i][1] - a2[i - 1][1]) ** 2))
+#         area_list.append(area_list[i - 1] + el_drop_list[i - 1] * (length_list[i] - length_list[i - 1]) +
+#                          0.5 * (length_list[i] - length_list[i - 1]) * (
+#                                  el_drop_list[i] - el_drop_list[i - 1]))
+#
+#     sea = (2 * area_list[-1] / length) / length
+#     d10 = list(map(lambda x: abs(x - length_list[-1] * .1), length_list))
+#     d85 = list(map(lambda x: abs(x - length_list[-1] * .85), length_list))
+#
+#     d10_loc = d10.index(min(d10))
+#     d85_loc = d85.index(min(d85))
+#
+#     s_cell = [int(round((vertex_list[0][0] - upper_left_x - (x_size / 2)) / x_size, 0)),
+#               int(round((vertex_list[0][1] - upper_left_y - (y_size / 2)) / y_size, 0))]
+#
+#     d10_cell = [int(round((vertex_list[d10_loc][0] - upper_left_x - (x_size / 2)) / x_size, 0)),
+#                 int(round((vertex_list[d10_loc][1] - upper_left_y - (y_size / 2)) / y_size, 0))]
+#
+#     d85_cell = [int(round((vertex_list[d85_loc][0] - upper_left_x - (x_size / 2)) / x_size, 0)),
+#                 int(round((vertex_list[d85_loc][1] - upper_left_y - (y_size / 2)) / y_size, 0))]
+#
+#     e_cell = [int(round((vertex_list[-1][0] - upper_left_x - (x_size / 2)) / x_size, 0)),
+#               int(round((vertex_list[-1][1] - upper_left_y - (y_size / 2)) / y_size, 0))]
+#
+#     d10_val = el_band.ReadAsArray(d10_cell[0], d10_cell[1], 1, 1)[0]
+#     d85_val = el_band.ReadAsArray(d85_cell[0], d85_cell[1], 1, 1)[0]
+#     s_val = el_band.ReadAsArray(s_cell[0], s_cell[1], 1, 1)[0]
+#     e_val = el_band.ReadAsArray(e_cell[0], e_cell[1], 1, 1)[0]
+#
+#     del el_band
+#
+#     s10 = (d85_val - d10_val) / (0.75 * length)
+#
+#     return line_, {
+#         "Length (km)": np.round(length / 1000, 3),
+#         "Elevation (Start)": int(s_val[0]),
+#         "Elevation (10%)": int(d10_val[0]),
+#         "Elevation (85%)": int(d85_val[0]),
+#         "Elevation (End)": int(e_val[0]),
+#         "Slope": (float(e_val[0]) - float(s_val[0])) / length,
+#         "Slope (Equal Area)": float(sea),
+#         "Slope (10-85)": float(s10[0]),
+#         "Tc (hr)": np.round(((0.87 * (length / 1000) ** 2) / (1000 * float(s10[0]))) ** 0.385, 2)
+#     }
 
 
 def reset_values():
@@ -328,11 +328,7 @@ else:
 
         with col1:
             if st.button("Reset"):
-                st.session_state.selcoord = 0
-                st.session_state.catchsel = 0
-                st.session_state.selgpt = 0
-                st.session_state.closestdre = 0
-                st.session_state.catchLenData = 0
+                reset_values()
                 st.experimental_rerun()
 
         if not st.session_state.catchsel:
@@ -343,8 +339,8 @@ else:
                                                          coords[0],
                                                          coords[1])
 
-            st.session_state.catchLenData = longest_flow_path(st.session_state.selgpt,
-                                                              region)
+            # st.session_state.catchLenData = longest_flow_path(st.session_state.selgpt,
+            #                                                   region)
 
             st.session_state.dcoast = dist_to_coast(Point([coords[0], coords[1]]))
 
@@ -367,21 +363,21 @@ else:
                 st.session_state.grp = st.session_state.grp.iloc[:16]
                 # tc = st.session_state.catchLenData[1]["Tc (hr)"]
 
-                if st.session_state.catchLenData[1]["Tc (hr)"] < 24:
-                    st.session_state.grp.loc[
-                        st.session_state.catchLenData[1]["Tc (hr)"] * 60] = np.nan
-                    st.session_state.grp.sort_index(inplace=True)
-                    st.session_state.grp.interpolate(method='index', inplace=True)
-                    st.session_state.c_dre = st.session_state.grp.loc[
-                        st.session_state.catchLenData[1]["Tc (hr)"] * 60]
-
-                elif st.session_state.catchLenData[1]["Tc (hr)"] < 168:
-                    st.session_state.grp_daily.loc[
-                        st.session_state.catchLenData[1]["Tc (hr)"] / 24] = np.nan
-                    st.session_state.grp_daily.sort_index(inplace=True)
-                    st.session_state.grp_daily.interpolate(method='index', inplace=True)
-                    st.session_state.c_dre = st.session_state.grp_daily.loc[
-                        st.session_state.catchLenData[1]["Tc (hr)"] / 24]
+                # if st.session_state.catchLenData[1]["Tc (hr)"] < 24:
+                #     st.session_state.grp.loc[
+                #         st.session_state.catchLenData[1]["Tc (hr)"] * 60] = np.nan
+                #     st.session_state.grp.sort_index(inplace=True)
+                #     st.session_state.grp.interpolate(method='index', inplace=True)
+                #     st.session_state.c_dre = st.session_state.grp.loc[
+                #         st.session_state.catchLenData[1]["Tc (hr)"] * 60]
+                #
+                # elif st.session_state.catchLenData[1]["Tc (hr)"] < 168:
+                #     st.session_state.grp_daily.loc[
+                #         st.session_state.catchLenData[1]["Tc (hr)"] / 24] = np.nan
+                #     st.session_state.grp_daily.sort_index(inplace=True)
+                #     st.session_state.grp_daily.interpolate(method='index', inplace=True)
+                #     st.session_state.c_dre = st.session_state.grp_daily.loc[
+                #         st.session_state.catchLenData[1]["Tc (hr)"] / 24]
                 # TODO: ADD CLAUSE IF 7 days exceeded...
 
                 st.session_state.grp.reset_index(inplace=True)
@@ -395,21 +391,21 @@ else:
                            "Perimeter (km)": [st.session_state.catchData[2]],
                            "MAP mean (mm)": [st.session_state.catchData[3]],
                            "Distance from Coast (Decimal Degree)": st.session_state.dcoast})
-        df2 = pd.DataFrame(st.session_state.catchLenData[1], index=[0])
+        # df2 = pd.DataFrame(st.session_state.catchLenData[1], index=[0])
         df.set_index("Outlet Latitude", inplace=True)
-        df2.set_index("Length (km)", inplace=True)
+        # df2.set_index("Length (km)", inplace=True)
         # with col2:
 
-        m.add_geojson(st.session_state.catchLenData[0].__geo_interface__,
-                      layer_name='Flow Length',
-                      info_mode=None,
-                      style=flow_style_)
+        # m.add_geojson(st.session_state.catchLenData[0].__geo_interface__,
+        #               layer_name='Flow Length',
+        #               info_mode=None,
+        #               style=flow_style_)
 
-        feature = {"type": "FeatureCollection",
-                   "features": [{'type': 'Feature',
-                                 "geometry": st.session_state.catchLenData[0].__geo_interface__,
-                                 "properties": st.session_state.catchLenData[1]
-                                 }]}
+        # feature = {"type": "FeatureCollection",
+        #            "features": [{'type': 'Feature',
+        #                          "geometry": st.session_state.catchLenData[0].__geo_interface__,
+        #                          "properties": st.session_state.catchLenData[1]
+        #                          }]}
 
         m.add_geojson(st.session_state.catchData[0].__geo_interface__,
                       layer_name='Catchment',
@@ -459,29 +455,29 @@ else:
         d_fig.yaxis[0].axis_label = 'Rainfall Depth (mm)'
 
         aeps = 1 / st.session_state.c_dre.index.values * 100
-        c_fig = figure(title="Design Rainfall Depths (Sub-daily)", x_axis_type="log",
-                       x_range=(aeps.max(), aeps.min()),
-                       background_fill_color="#fafafa",
-                       tooltips="@x % AEP - @y mm",
-                       toolbar_location="right"
-                       )
-        c_fig.add_tools(HoverTool(
-            tooltips=[
-                ("AEP", '@x % AEP'),
-                ("Design Rainfall", '@y mm'),
-            ],
-            mode='vline'
-        ))
-        c_fig.line(aeps, st.session_state.c_dre.values,
-                   line_width=2, color=color, alpha=0.8,
-                   legend_label=f"Tc = {st.session_state.catchLenData[1]['Tc (hr)']} hours")
-
-        c_fig.legend[0].items.reverse()
-        c_fig.legend.location = "top_left"
-        c_fig.legend.click_policy = "hide"
-
-        c_fig.xaxis[0].axis_label = 'Annual Exceedance Probability (%)'
-        c_fig.yaxis[0].axis_label = 'Rainfall Depth (mm)'
+        # c_fig = figure(title="Design Rainfall Depths (Sub-daily)", x_axis_type="log",
+        #                x_range=(aeps.max(), aeps.min()),
+        #                background_fill_color="#fafafa",
+        #                tooltips="@x % AEP - @y mm",
+        #                toolbar_location="right"
+        #                )
+        # c_fig.add_tools(HoverTool(
+        #     tooltips=[
+        #         ("AEP", '@x % AEP'),
+        #         ("Design Rainfall", '@y mm'),
+        #     ],
+        #     mode='vline'
+        # ))
+        # c_fig.line(aeps, st.session_state.c_dre.values,
+        #            line_width=2, color=color, alpha=0.8,
+        #            legend_label=f"Tc = {st.session_state.catchLenData[1]['Tc (hr)']} hours")
+        #
+        # c_fig.legend[0].items.reverse()
+        # c_fig.legend.location = "top_left"
+        # c_fig.legend.click_policy = "hide"
+        #
+        # c_fig.xaxis[0].axis_label = 'Annual Exceedance Probability (%)'
+        # c_fig.yaxis[0].axis_label = 'Rainfall Depth (mm)'
 
         pf_fig = figure(title="Regional Design Peak Flow", x_axis_type="log",
                        x_range=(aeps.max(), aeps[6]),
@@ -498,10 +494,10 @@ else:
         ))
 
         # Random Rational method calc
-        c_vals = np.random.random(7)
-        c_vals.sort()
-        i_vals = st.session_state.c_dre.values[:7] / st.session_state.catchLenData[1]["Tc (hr)"]
-        rat_q = st.session_state.catchData[1] * c_vals * i_vals / 3.6
+        # c_vals = np.random.random(7)
+        # c_vals.sort()
+        # i_vals = st.session_state.c_dre.values[:7] / st.session_state.catchLenData[1]["Tc (hr)"]
+        # rat_q = st.session_state.catchData[1] * c_vals * i_vals / 3.6
 
         pf_fig.line(aeps[:7], st.session_state.floods[0].values,
                     line_width=2, color=color, alpha=0.8,
@@ -522,26 +518,27 @@ else:
 
     with st.expander("Interactive Map"):
         m.to_streamlit(height=600, bidirectional=True)
-        st.download_button("Download Flow Path",
-                           feature.__repr__().replace("'", '"').replace("(", "[").replace(")", "]"),
-                           file_name="flow.json")
+        # st.download_button("Download Flow Path",
+        #                    feature.__repr__().replace("'", '"').replace("(", "[").replace(")", "]"),
+        #                    file_name="flow.json")
     p = None
 
     with st.expander("Catchment Attributes"):
         st.dataframe(df)
-        st.dataframe(df2)
+        # st.dataframe(df2)
 
     with st.expander("Rainfall Data"):
         tab1, tab2, tab3 = st.tabs(["Catchment", "Sub-daily", "Daily"])
         with tab1:
-            t1c1, t1c2 = st.columns(2)
-            with t1c1:
-                st.bokeh_chart(c_fig, use_container_width=True)
-            with t1c2:
-                st.dataframe(st.session_state.c_dre)
-                st.download_button("Download Catchment Rainfall",
-                                   st.session_state.c_dre.to_csv(),
-                                   file_name="catch_rain.csv")
+            pass
+            # t1c1, t1c2 = st.columns(2)
+            # with t1c1:
+            #     # st.bokeh_chart(c_fig, use_container_width=True)
+            # with t1c2:
+            #     st.dataframe(st.session_state.c_dre)
+            #     st.download_button("Download Catchment Rainfall",
+            #                        st.session_state.c_dre.to_csv(),
+            #                        file_name="catch_rain.csv")
         with tab2:
             t2c1, t2c2 = st.columns(2)
             with t2c1:
