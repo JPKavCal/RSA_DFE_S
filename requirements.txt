@@ -9,6 +9,6 @@ streamlit
 rasterio
 bokeh
 pysheds
-gdal==3.2.2
+gdal==3.6.2
 localtileserver
 sqlalchemy
