@@ -1,3 +1,4 @@
+--find-links=https://girder.github.io/large_image_wheels GDAL
 pandas
 numpy
 geopandas
@@ -9,6 +10,5 @@ streamlit
 rasterio
 bokeh
 pysheds
-GDAL==3.6.2
 localtileserver
 sqlalchemy
