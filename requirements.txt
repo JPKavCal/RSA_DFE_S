@@ -9,3 +9,4 @@ streamlit
 rasterio
 bokeh
 pysheds
+sqlalchemy
