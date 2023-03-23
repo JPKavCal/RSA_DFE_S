@@ -6,3 +6,6 @@ pyproj
 leafmap
 streamlit_folium
 streamlit
+rasterio
+bokeh
+gdal

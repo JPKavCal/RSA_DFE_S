@@ -1,0 +1,51 @@
+<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
+<qgis version="3.22.4-Białowieża">
+  <identifier>secondary catchments SA</identifier>
+  <parentidentifier></parentidentifier>
+  <language>EN</language>
+  <type>dataset</type>
+  <title>secondary catchments SA</title>
+  <abstract>Secondary catchment boundaries for South Africa
+
+
+
+REQUIRED: A brief narrative summary of the data set.
+
+REQUIRED: A summary of the intentions with which the data set was developed.</abstract>
+  <keywords vocabulary="gmd:topicCategory">
+    <keyword>REQUIRED: Common-use word or phrase used to describe the subject of the data set.</keyword>
+  </keywords>
+  <contact>
+    <name>Stephan van Biljon</name>
+    <organization>DWAF hydrology</organization>
+    <position>contact</position>
+    <voice>012 336 8784</voice>
+    <fax></fax>
+    <email></email>
+    <role></role>
+  </contact>
+  <links>
+    <link type="Local Area Network" mimeType="" url="file://\\jhb-fs0\vol3\Proj\325475\8GIS\WR2005\Data\Coverages\catchments\secondary catchments SA.shp" format="" description="" size="" name="Shapefile"/>
+  </links>
+  <history>Secondary Catchment Boundaries</history>
+  <fees></fees>
+  <constraints type="Access">REQUIRED: Restrictions and legal prerequisites for accessing the data set.</constraints>
+  <rights>REQUIRED: Restrictions and legal prerequisites for using the data set after access is granted.</rights>
+  <encoding></encoding>
+  <crs>
+    <spatialrefsys>
+      <wkt></wkt>
+      <proj4></proj4>
+      <srsid>0</srsid>
+      <srid>0</srid>
+      <authid></authid>
+      <description></description>
+      <projectionacronym></projectionacronym>
+      <ellipsoidacronym></ellipsoidacronym>
+      <geographicflag>false</geographicflag>
+    </spatialrefsys>
+  </crs>
+  <extent>
+    <spatial dimensions="2" maxz="0" minx="16.45392800000000122" miny="-34.83400000000000318" maxx="32.88831700000000069" crs="EPSG:4326" maxy="-22.12335799999999963" minz="0"/>
+  </extent>
+</qgis>
