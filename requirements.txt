@@ -8,5 +8,4 @@ streamlit_folium
 streamlit
 rasterio
 bokeh
-libgdal
 gdal
