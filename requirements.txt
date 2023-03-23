@@ -9,4 +9,5 @@ streamlit
 rasterio
 bokeh
 pysheds
+localtileserver
 sqlalchemy
